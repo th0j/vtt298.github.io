@@ -1,0 +1,238 @@
+---
+title: Automating Pull Request Reviews with AI and AWS Lambda
+date: '2024-08-31'
+tags: ['aws', 'lambda', 'ai', 'github-action']
+draft: false
+summary: We explore how to automate pull request reviews using GitHub Actions, AWS Lambda, and AI. By setting up a continuous integration workflow, we can automatically trigger a Lambda function on pull request events. This function fetches the pull request details, leverages AI to streamlining the code review process. This integration enhances efficiency and provides valuable AI-driven insights directly within your development workflow.
+---
+
+Setting up a continuous integration (CI) process that triggers on pull requests and interfaces with an AWS Lambda function can be a powerful way to automate pull request reviews.
+Below is a step-by-step guide on how you can accomplish this.
+We'll cover setting up a basic CI workflow using GitHub Actions, interfacing with AWS Lambda, and using a script to call the OpenAI API to auto-review the pull request.
+
+# Prerequisites
+- GitHub account: Access to the GitHub repository where you want to automate PR reviews.
+- AWS Account: You need access to AWS to create and manage Lambda functions.
+- OpenAI API Access: Ensure you have access to the OpenAI API.
+
+# Step-by-Step Guide
+## Step 1: Create a Lambda function using NodeJS
+Go to the AWS Console, navigate to Lambda services, and create a new Lambda function.
+![Create AWS Lambda](/static/images/automate-your-github-pull-request-with-aws-lambda-and-openai/aws-create-lambda.png)
+
+Once created, you'll see the following outcome:
+![Simple AI reviewer application](/static/images/automate-your-github-pull-request-with-aws-lambda-and-openai/simple_ai_reviewer.png)
+
+Let's create the function to review pull requests:
+
+```
+const https = require('https');
+
+export const handler = async (event) => {
+  const pullRequestNumber = event.pullRequestNumber;
+
+  const repositoryName = event.repositoryName;
+  const githubToken = process.env.GITHUB_TOKEN;
+  const openaiApiKey = process.env.OPENAI_API_KEY;
+
+ const changes = await fetchPullRequestDiff(repositoryName, pullRequestNumber, githubToken);
+
+  const feedback = await generateCodeReview(changes, openaiApiKey);
+
+  await postComment(repositoryName, pullRequestNumber, feedback, githubToken);
+
+  return {
+    statusCode: 200,
+    body: JSON.stringify('Success'),
+  };
+};
+
+function fetchPullRequestDiff(repositoryName, pullRequestNumber, githubToken) {
+  const options = {
+    hostname: 'api.github.com',
+    path: `/repos/${repositoryName}/pulls/${pullRequestNumber}`,
+    method: 'GET',
+    headers: {
+      'User-Agent': 'node.js',
+      'Authorization': `token ${githubToken}`,
+      'Accept': 'application/vnd.github.v3.diff',
+    },
+  };
+
+  return new Promise((resolve, reject) => {
+    const req = https.request(options, (res) => {
+      let data = '';
+      res.on('data', (chunk) => {
+        data += chunk;
+      });
+
+      res.on('end', () => {
+        resolve(data);
+      });
+    });
+
+    req.on('error', (e) => {
+      reject(e);
+    });
+
+    req.end();
+  });
+}
+
+function generateCodeReview(diff, openaiApiKey) {
+  const options = {
+    hostname: 'api.openai.com',
+    path: '/v1/chat/completions',
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${openaiApiKey}`,
+    },
+  };
+
+  const prompt = `Review the following code changes and provide feedback:\n\n${diff}`;
+  const data = JSON.stringify({
+    model: 'gpt-4o-mini',
+    messages: [
+      { role: 'system', content: 'You are a code review assistant.' },
+      { role: 'user', content: prompt },
+    ],
+    max_tokens: 300,
+  });
+
+  return new Promise((resolve, reject) => {
+    const req = https.request(options, (res) => {
+      let data = '';
+      res.on('data', (chunk) => {
+        data += chunk;
+      });
+
+      res.on('end', () => {
+        const responseBody = JSON.parse(data);
+        console.log(responseBody);
+        const feedback = responseBody.choices[0].message.content;
+        resolve(feedback);
+      });
+    });
+
+    req.on('error', (e) => {
+      reject(e);
+    });
+
+    req.write(data);
+    req.end();
+  });
+}
+
+function postComment(repositoryName, pullRequestNumber, feedback, githubToken) {
+  const options = {
+    hostname: 'api.github.com',
+    path: `/repos/${repositoryName}/issues/${pullRequestNumber}/comments`,
+    method: 'POST',
+    headers: {
+      'User-Agent': 'node.js',
+      'Authorization': `token ${githubToken}`,
+      'Accept': 'application/vnd.github.v3+json',
+    },
+  };
+
+  const data = JSON.stringify({ body: `Code Review Feedback:\n\n${feedback}` });
+
+  return new Promise((resolve, reject) => {
+    const req = https.request(options, (res) => {
+      res.on('end', () => {
+        resolve();
+      });
+    });
+
+    req.on('error', (e) => {
+      reject(e);
+    });
+
+    req.write(data);
+    req.end();
+  });
+}
+
+```
+
+*Important*: The default timeout for Lambda functions is 3 seconds, and the maximum is 15 minutes.
+This function involves connecting to GitHub and OpenAI and then posting comments to GitHub, which can take substantial time.
+Therefore, increase the timeout to 1 minute.
+
+Navigate to the Configuration tab, then to General configuration, and increase the timeout. Also, go to the Environment variables tab to create the necessary environment variables:
+`GITHUB_TOKEN` and `OPENAI_API_KEY`
+
+![Github Traffic](/static/images/automate-your-github-pull-request-with-aws-lambda-and-openai/lambda-environment-variables.png)
+
+
+## Step 2: Integrating with GitHub
+### Obtain a GitHub Token
+Go to [Personal Access Tokens](https://github.com/settings/personal-access-tokens/new) to create a GitHub PAT (Personal Access Token)
+![Github Traffic](/static/images/automate-your-github-pull-request-with-aws-lambda-and-openai/grained-github-PAT.png)
+
+Permissions Required:
+1. `contents` Permission:
+- Scope: read
+- Purpose: Allows you to fetch details about the repository content. This is often needed for workflows that check out the code or need to read other repository data.
+
+2. `pull-requests` Permission:
+- Scope: write
+- Purpose: Specifically needed for creating or updating comments on pull requests. It grants access to the GitHub API endpoints related to pull requests.
+
+3. `issues` Permission:
+- Scope: write
+- Purpose: Although the pull-requests scope might be used, GitHub often treats PR comments as issue comments, so this permission could be involved for creating comments.
+
+## Testing Your Lambda Function
+Before integrating your Lambda function with GitHub, it’s crucial to test its functionality.
+Click on the "Test" button to create a new test event. This simulates a trigger to your function.
+Use the following example event template to test a simple PR review process:
+![Github Traffic](/static/images/automate-your-github-pull-request-with-aws-lambda-and-openai/test-your-lambda.png)
+
+### Create a GitHub Action Workflow
+Navigate to your GitHub repository and create a new workflow file under `.github/workflows/` directory:
+
+```
+name: Pull Request Review Automation
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  call-lambda:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Trigger AWS Lambda
+        run: |
+          aws lambda invoke \
+            --function-name simple_ai_reviewer \
+            --payload '{"pullRequestNumber": "${{ github.event.pull_request.number }}", "repositoryName": "${{ github.repository }}"}' \
+            output.json
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ap-southeast-1
+
+```
+
+After implementing the setup, you'll see comments on your pull requests automatically generated by the Lambda function:
+![Github Traffic](/static/images/automate-your-github-pull-request-with-aws-lambda-and-openai/code-review-result.png)
+
+# Common Issues & Troubleshooting
+- Lambda Timeout: If your Lambda function times out, consider increasing its timeout setting in the configuration tab.
+- Permissions Error: Ensure that the IAM role attached to your Lambda function has the necessary permissions.
+- GitHub Action Failure: Confirm that the AWS credentials in your GitHub secrets are correct and have adequate permissions.
+
+# Summary
+Automating pull request reviews using AI and AWS Lambda not only saves time but also enforces consistent code quality checks. By following this guide, you can set up an efficient review system that seamlessly integrates into your workflow. As you refine the AI model, you'll continually enhance your project's review process and foster a robust development environment.
+
+
+
+Feel free to leave your thoughts and questions in the comments!
