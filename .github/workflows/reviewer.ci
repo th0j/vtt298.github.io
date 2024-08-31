@@ -1,0 +1,25 @@
+name: Pull Request Review Automation
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  call-lambda:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Trigger AWS Lambda
+        run: |
+          aws lambda invoke \
+            --function-name YourLambdaFunctionName \
+            --payload '{"pullRequestNumber": "${{ github.event.pull_request.number }}", "repositoryName": "${{ github.repository }}"}' \
+            output.json
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ap-southeast-1
