@@ -8,15 +8,13 @@ on:
 jobs:
   call-lambda:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v2
-
+      - run: echo "🎉 The job was automatically triggered by a ${{ github.event_name }} event."
+      - run: echo "🔎 The name of your branch is ${{ github.ref }} and your repository is ${{ github.repository }}."
       - name: Trigger AWS Lambda
         run: |
           aws lambda invoke \
-            --function-name YourLambdaFunctionName \
+            --function-name simple_ai_reviewer \
             --payload '{"pullRequestNumber": "${{ github.event.pull_request.number }}", "repositoryName": "${{ github.repository }}"}' \
             output.json
         env:
