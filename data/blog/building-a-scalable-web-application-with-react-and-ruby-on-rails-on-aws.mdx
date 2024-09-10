@@ -1,0 +1,55 @@
+---
+title: Building a Scalable Web Application with React and Ruby on Rails on AWS
+date: '2024-09-09'
+tags: ['aws', 'ruby', 'rails', 'react']
+draft: false
+summary: We'll walk you through the process of deploying your app on AWS, creating a scalable and robust architecture that can handle growth and traffic spikes with ease.
+---
+
+# Introduction
+Step by step building a scalable web application with React and Ruby on Rails on AWS
+
+# Overview of the Architecture:
+Our AWS architecture is designed to be highly available, scalable, and secure. Here's a high-level overview of the key components:
+- Amazon VPC: Provides a logically isolated section of the AWS Cloud.
+- Public and Private Subnets: Enhance security by separating public-facing and internal resources.
+- Amazon EC2 with Auto Scaling: Hosts our React frontend and Rails backend applications.
+- Elastic Load Balancer (ELB): Distributes incoming traffic across multiple EC2 instances.
+- Amazon RDS: Manages our database with options for high availability.
+- Amazon ElastiCache: Improves performance through caching.
+- Amazon CloudFront: Serves as a CDN to deliver content globally with low latency.
+- AWS CloudWatch: Monitors our application and infrastructure.
+
+![Architecture](/static/images/building-a-scalable-web-application-with-react-and-ruby-on-rails-on-aws/architecture.jpg)
+
+# Step by step guide
+
+## 1. Setup VPC
+
+
+## 2. Create Security Groups
+
+## 3. Set Up RDS
+
+
+## 4. Deploy Your Rails Backend
+
+### 4.1 Create an EC2 for your Rails app:
+
+### 4.2 Create an Auto Scaling group
+
+### 4.3 Create an Application Load Balancer for the backend
+
+
+## 5. Deploy Your React Frontend
+
+## 6. Set Up Monitoring and Logging
+
+# Common Issues & Troubleshooting
+- If your backend can't connect to RDS, double-check the security group rules.
+- If the frontend can't reach the backend, ensure the ALB DNS name is correctly configured in your React app.
+- For slow response times, check your Auto Scaling group settings and consider adjusting the scaling policy.
+
+# Summary
+Congratulations! You've successfully set up a scalable architecture for your React and Ruby on Rails application on AWS.
+We'd love to hear about your experience! Drop a comment below with any questions, suggestions, or success stories. If you found this guide helpful, please share it with your fellow developers. Happy coding!
